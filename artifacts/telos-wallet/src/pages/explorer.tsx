@@ -1,159 +1,226 @@
 import { useState } from "react";
 import { Layout } from "@/components/layout";
 import { useGetExplorerBlocks, useGetExplorerTransactions, useExplorerSearch } from "@workspace/api-client-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Box, ArrowRightLeft } from "lucide-react";
+import { Search, Box, ArrowRightLeft, Zap, Globe, X, Hash, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+
+type Network = "evm" | "zero";
 
 export default function ExplorerPage() {
-  const [network, setNetwork] = useState<"evm" | "zero">("evm");
+  const [network, setNetwork] = useState<Network>("evm");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchTrigger, setSearchTrigger] = useState("");
+  const [activeTab, setActiveTab] = useState<"blocks" | "transactions">("blocks");
 
-  const { data: blocks, isLoading: blocksLoading } = useGetExplorerBlocks({ network }, { query: { refetchInterval: 5000 } as any });
-  const { data: txs, isLoading: txsLoading } = useGetExplorerTransactions({ network }, { query: { refetchInterval: 5000 } as any });
-  
+  const { data: blocks, isLoading: blocksLoading } = useGetExplorerBlocks(
+    { network },
+    { query: { refetchInterval: 5000 } as any }
+  );
+  const { data: txs, isLoading: txsLoading } = useGetExplorerTransactions(
+    { network },
+    { query: { refetchInterval: 5000 } as any }
+  );
+
   const { data: searchResults, isLoading: searchLoading } = useExplorerSearch(
-    { q: searchTrigger }, 
+    { q: searchTrigger },
     { query: { enabled: !!searchTrigger } as any }
   );
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      setSearchTrigger(searchQuery.trim());
-    }
+    if (searchQuery.trim()) setSearchTrigger(searchQuery.trim());
+  };
+
+  const clearSearch = () => {
+    setSearchTrigger("");
+    setSearchQuery("");
   };
 
   return (
     <Layout>
-      <div className="max-w-6xl mx-auto">
-        <header className="mb-10 text-center max-w-2xl mx-auto">
-          <h1 className="text-4xl font-extrabold mb-4">Telos Explorer</h1>
-          <p className="text-muted-foreground text-lg mb-8">Real-time network visibility for Telos EVM and Telos Zero.</p>
-          
-          <form onSubmit={handleSearch} className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
-              <Input 
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search by address, block, or transaction hash..." 
-                className="pl-12 h-14 text-lg rounded-full bg-card shadow-sm border-border"
-              />
-            </div>
-            <Button type="submit" size="lg" className="h-14 rounded-full px-8">Search</Button>
-          </form>
-        </header>
+      <div className="px-4 pt-5 pb-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold mb-0.5">Explorer</h1>
+          <p className="text-gray-500 text-sm">Live Telos network activity</p>
+        </div>
+
+        <form onSubmit={handleSearch} className="flex gap-2 mb-5">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+            <input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Address, block, or tx hash..."
+              className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl pl-10 pr-4 py-3 text-sm text-white outline-none focus:border-cyan-500/50 transition-colors placeholder-gray-600"
+            />
+          </div>
+          <button
+            type="submit"
+            className="px-4 py-3 bg-cyan-500 text-white rounded-xl text-sm font-semibold hover:bg-cyan-400 transition-colors shrink-0"
+          >
+            Search
+          </button>
+        </form>
 
         {searchTrigger && (
-          <div className="mb-12 bg-primary/5 border border-primary/20 rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Search Results</h2>
-              <Button variant="ghost" size="sm" onClick={() => {setSearchTrigger(""); setSearchQuery("");}}>Clear</Button>
-            </div>
-            
-            {searchLoading ? (
-              <Skeleton className="h-24 w-full" />
-            ) : searchResults ? (
-              <div className="bg-card border border-border p-4 rounded-xl">
-                <div className="mb-2">
-                  <Badge variant="outline" className="uppercase tracking-wider font-bold mb-2">
-                    Found {searchResults.type}
-                  </Badge>
-                </div>
-                <pre className="text-sm font-mono whitespace-pre-wrap overflow-x-auto text-muted-foreground bg-muted p-4 rounded-lg">
-                  {JSON.stringify(searchResults.data, null, 2)}
-                </pre>
+          <div className="mb-5 bg-[#1a1a1a] border border-white/10 rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+              <div className="flex items-center gap-2">
+                <Hash className="w-4 h-4 text-cyan-400" />
+                <span className="text-sm font-semibold">Search Results</span>
               </div>
-            ) : null}
+              <button onClick={clearSearch} className="text-gray-500 hover:text-gray-300 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4">
+              {searchLoading ? (
+                <Skeleton className="h-20 w-full bg-white/5" />
+              ) : searchResults ? (
+                <div>
+                  <span className="inline-block text-[10px] font-bold uppercase tracking-widest text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 rounded-full px-2.5 py-1 mb-3">
+                    {searchResults.type}
+                  </span>
+                  <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto text-gray-400 bg-black/40 p-3 rounded-xl leading-relaxed">
+                    {JSON.stringify(searchResults.data, null, 2)}
+                  </pre>
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm text-center py-4">No results found</p>
+              )}
+            </div>
           </div>
         )}
 
-        <Tabs value={network} onValueChange={(v) => setNetwork(v as any)} className="w-full">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold">Live Network Activity</h2>
-            <TabsList className="h-12 bg-card border border-border">
-              <TabsTrigger value="evm" className="text-base px-6">Telos EVM</TabsTrigger>
-              <TabsTrigger value="zero" className="text-base px-6">Telos Zero</TabsTrigger>
-            </TabsList>
-          </div>
+        <div className="flex items-center gap-2 mb-4">
+          <button
+            onClick={() => setNetwork("evm")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+              network === "evm"
+                ? "bg-cyan-500/15 border border-cyan-500/30 text-cyan-400"
+                : "bg-[#1a1a1a] border border-white/10 text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            Telos EVM
+          </button>
+          <button
+            onClick={() => setNetwork("zero")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+              network === "zero"
+                ? "bg-purple-500/15 border border-purple-500/30 text-purple-400"
+                : "bg-[#1a1a1a] border border-white/10 text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            <Zap className="w-3.5 h-3.5" />
+            Telos Zero
+          </button>
 
-          <div className="grid lg:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Box className="w-5 h-5 text-primary" />
-                <h3 className="text-lg font-bold">Latest Blocks</h3>
-              </div>
-              
-              <div className="bg-card border border-border rounded-xl overflow-hidden">
-                {blocksLoading ? (
-                  <div className="p-4 space-y-4"><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /></div>
-                ) : blocks && blocks.length > 0 ? (
-                  <div className="divide-y divide-border">
-                    {blocks.map(block => (
-                      <div key={block.blockNumber} className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
-                        <div className="flex gap-4 items-center">
-                          <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center font-bold text-sm">
-                            Bk
-                          </div>
-                          <div>
-                            <p className="font-bold text-primary cursor-pointer hover:underline">{block.blockNumber.toLocaleString()}</p>
-                            <p className="text-xs text-muted-foreground">Proposer: <span className="font-mono">{block.producer.slice(0,10)}...</span></p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold">{block.txCount} txns</p>
-                          <p className="text-xs text-muted-foreground">{new Date(block.timestamp).toLocaleTimeString()}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-8 text-center text-muted-foreground">No blocks data</div>
-                )}
-              </div>
-            </div>
+          <div className="flex-1" />
 
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 mb-2">
-                <ArrowRightLeft className="w-5 h-5 text-secondary" />
-                <h3 className="text-lg font-bold">Recent Transactions</h3>
-              </div>
-              
-              <div className="bg-card border border-border rounded-xl overflow-hidden">
-                {txsLoading ? (
-                  <div className="p-4 space-y-4"><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /></div>
-                ) : txs && txs.length > 0 ? (
-                  <div className="divide-y divide-border">
-                    {txs.map(tx => (
-                      <div key={tx.txHash} className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
-                        <div className="flex gap-4 items-center overflow-hidden">
-                          <div className="w-12 h-12 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center">
-                            <ArrowRightLeft className="w-5 h-5" />
-                          </div>
-                          <div className="overflow-hidden">
-                            <p className="font-mono text-sm text-secondary truncate cursor-pointer hover:underline max-w-[200px]">{tx.txHash}</p>
-                            <p className="text-xs text-muted-foreground font-mono truncate max-w-[200px]">From: {tx.fromAddress}</p>
-                          </div>
-                        </div>
-                        <div className="text-right pl-4 shrink-0">
-                          <p className="text-sm font-bold">{tx.amount} {tx.currency}</p>
-                          <p className="text-xs text-muted-foreground">{new Date(tx.timestamp).toLocaleTimeString()}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-8 text-center text-muted-foreground">No transaction data</div>
-                )}
-              </div>
-            </div>
+          <div className="flex bg-[#1a1a1a] border border-white/10 rounded-xl p-0.5">
+            <button
+              onClick={() => setActiveTab("blocks")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === "blocks" ? "bg-white/10 text-white" : "text-gray-500"
+              }`}
+            >
+              <Box className="w-3 h-3" /> Blocks
+            </button>
+            <button
+              onClick={() => setActiveTab("transactions")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === "transactions" ? "bg-white/10 text-white" : "text-gray-500"
+              }`}
+            >
+              <ArrowRightLeft className="w-3 h-3" /> Txns
+            </button>
           </div>
-        </Tabs>
+        </div>
+
+        <div className="bg-[#111] border border-white/5 rounded-2xl overflow-hidden">
+          {activeTab === "blocks" ? (
+            <>
+              <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Box className="w-4 h-4 text-cyan-400" />
+                  <span className="text-sm font-bold">Latest Blocks</span>
+                </div>
+                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              </div>
+              {blocksLoading ? (
+                <div className="p-4 space-y-3">
+                  {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-14 w-full bg-white/5" />)}
+                </div>
+              ) : blocks && blocks.length > 0 ? (
+                <div className="divide-y divide-white/5">
+                  {blocks.map(block => (
+                    <div key={block.blockNumber} className="px-4 py-3.5 flex items-center gap-3 hover:bg-white/3 transition-colors">
+                      <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center shrink-0">
+                        <Box className="w-4 h-4 text-cyan-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm text-cyan-400"># {block.blockNumber.toLocaleString()}</p>
+                        <p className="text-xs text-gray-500 truncate font-mono">
+                          {block.producer.slice(0, 16)}...
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-semibold">{block.txCount} txns</p>
+                        <p className="text-xs text-gray-500 flex items-center gap-1 justify-end">
+                          <Clock className="w-3 h-3" />
+                          {new Date(block.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-12 text-center text-gray-600 text-sm">No block data available</div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ArrowRightLeft className="w-4 h-4 text-purple-400" />
+                  <span className="text-sm font-bold">Recent Transactions</span>
+                </div>
+                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              </div>
+              {txsLoading ? (
+                <div className="p-4 space-y-3">
+                  {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-14 w-full bg-white/5" />)}
+                </div>
+              ) : txs && txs.length > 0 ? (
+                <div className="divide-y divide-white/5">
+                  {txs.map(tx => (
+                    <div key={tx.txHash} className="px-4 py-3.5 flex items-center gap-3 hover:bg-white/3 transition-colors overflow-hidden">
+                      <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                        <ArrowRightLeft className="w-4 h-4 text-purple-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-mono text-xs text-purple-400 truncate">{tx.txHash}</p>
+                        <p className="text-xs text-gray-500 font-mono truncate">From: {tx.fromAddress}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-semibold">{tx.amount} {tx.currency}</p>
+                        <p className="text-xs text-gray-500 flex items-center gap-1 justify-end">
+                          <Clock className="w-3 h-3" />
+                          {new Date(tx.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-12 text-center text-gray-600 text-sm">No transaction data available</div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </Layout>
   );
