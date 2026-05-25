@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getAuth } from "@clerk/express";
+import { getAuth, createClerkClient } from "@clerk/express";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { requireAuth } from "../../middlewares/requireAuth";
@@ -14,6 +14,8 @@ import {
 } from "@workspace/api-zod";
 
 const router = Router();
+
+const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! });
 
 // GET /users/me
 router.get("/users/me", requireAuth, async (req, res): Promise<void> => {
@@ -39,22 +41,41 @@ router.post("/users/sync", requireAuth, async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  // Try to fetch clerk user info from the request (headers set by Clerk middleware)
-  const clerkEmail = (req.headers["x-clerk-user-email"] as string) ?? "user@telos.net";
-  const clerkName = (req.headers["x-clerk-user-name"] as string) ?? undefined;
+  let email = "unknown@user.com";
+  let displayName: string | null = null;
+
+  try {
+    const clerkUser = await clerkClient.users.getUser(userId);
+    email = clerkUser.emailAddresses[0]?.emailAddress ?? email;
+    const firstName = clerkUser.firstName ?? "";
+    const lastName = clerkUser.lastName ?? "";
+    const fullName = [firstName, lastName].filter(Boolean).join(" ");
+    displayName = fullName || clerkUser.username || null;
+  } catch (err) {
+    // fall back to header values if Clerk lookup fails
+    email = (req.headers["x-clerk-user-email"] as string) ?? email;
+    displayName = (req.headers["x-clerk-user-name"] as string) ?? null;
+  }
 
   let [user] = await db.select().from(usersTable).where(eq(usersTable.clerkId, userId)).limit(1);
 
   if (!user) {
     const [created] = await db.insert(usersTable).values({
       clerkId: userId,
-      email: clerkEmail,
-      displayName: clerkName ?? null,
+      email,
+      displayName,
       role: "user",
       status: "active",
       twoFactorEnabled: false,
     }).returning();
     user = created;
+  } else {
+    // Update email/name in case they changed in Clerk
+    const [updated] = await db.update(usersTable)
+      .set({ email, displayName })
+      .where(eq(usersTable.clerkId, userId))
+      .returning();
+    user = updated;
   }
 
   res.json(SyncUserResponse.parse({
@@ -75,7 +96,6 @@ router.get("/users/2fa/setup", requireAuth, async (req, res): Promise<void> => {
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
   const { secret, otpauthUrl } = generateTotpSecret(user.email);
-  // Store temp secret so verify can check it
   await db.update(usersTable).set({ totpSecret: secret }).where(eq(usersTable.id, user.id));
   const qrCodeDataUrl = await generateQrCode(otpauthUrl);
 
