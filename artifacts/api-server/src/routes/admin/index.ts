@@ -8,6 +8,8 @@ import {
   AdminListTransactionsQueryParams,
 } from "@workspace/api-zod";
 
+const TLOS_RATE = 0.01425; // current TLOS/USD rate
+
 const router = Router();
 
 // GET /admin/stats
@@ -32,6 +34,7 @@ router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
     activeUsersToday: 0,
     pendingTransactions: pendingTransactions.value,
     pendingWithdrawals: pendingWithdrawals.value,
+    tlосRate: TLOS_RATE,
   });
 });
 
@@ -75,17 +78,36 @@ router.get("/admin/users/:userId", requireAdmin, async (req, res): Promise<void>
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
   const userWallets = await db.select().from(walletsTable).where(eq(walletsTable.userId, user.id));
-  const [txCount] = await db.select({ value: count() }).from(transactionsTable).where(eq(transactionsTable.userId, user.id));
+
+  const userTransactions = await db.select().from(transactionsTable)
+    .where(eq(transactionsTable.userId, user.id))
+    .orderBy(desc(transactionsTable.createdAt))
+    .limit(50);
+
+  const userWithdrawals = await db.select().from(withdrawalsTable)
+    .where(eq(withdrawalsTable.userId, user.id))
+    .orderBy(desc(withdrawalsTable.createdAt))
+    .limit(50);
 
   res.json({
     id: user.id, clerkId: user.clerkId, email: user.email, displayName: user.displayName,
     role: user.role, twoFactorEnabled: user.twoFactorEnabled, status: user.status,
-    walletCount: userWallets.length, transactionCount: txCount.value,
+    walletCount: userWallets.length, transactionCount: userTransactions.length,
     createdAt: user.createdAt.toISOString(),
     wallets: userWallets.map(w => ({
       id: w.id, label: w.label, zeroAddress: w.zeroAddress, evmAddress: w.evmAddress,
       network: w.network, balanceTlos: w.balanceTlos, balanceUsd: w.balanceUsd,
       createdAt: w.createdAt.toISOString(),
+    })),
+    transactions: userTransactions.map(t => ({
+      id: t.id, walletId: t.walletId, fromAddress: t.fromAddress, toAddress: t.toAddress,
+      amount: t.amount, currency: t.currency, status: t.status, txHash: t.txHash,
+      memo: t.memo, network: t.network, createdAt: t.createdAt.toISOString(),
+    })),
+    withdrawals: userWithdrawals.map(w => ({
+      id: w.id, walletId: w.walletId, amount: w.amount, toAddress: w.toAddress,
+      network: w.network, status: w.status, adminNote: w.adminNote, txHash: w.txHash,
+      createdAt: w.createdAt.toISOString(), processedAt: w.processedAt?.toISOString() ?? null,
     })),
   });
 });
@@ -119,6 +141,35 @@ router.patch("/admin/users/:userId", requireAdmin, async (req, res): Promise<voi
   });
 });
 
+// POST /admin/users/:userId/reset-2fa
+router.post("/admin/users/:userId/reset-2fa", requireAdmin, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.clerkId, raw)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  await db.update(usersTable)
+    .set({ twoFactorEnabled: false, totpSecret: null })
+    .where(eq(usersTable.id, user.id));
+
+  res.json({ success: true, message: "2FA reset successfully" });
+});
+
+// DELETE /admin/users/:userId
+router.delete("/admin/users/:userId", requireAdmin, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.clerkId, raw)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  if (user.role === "admin") { res.status(403).json({ error: "Cannot delete admin users" }); return; }
+
+  // Delete in order: transactions, withdrawals, wallets, user
+  await db.delete(transactionsTable).where(eq(transactionsTable.userId, user.id));
+  await db.delete(withdrawalsTable).where(eq(withdrawalsTable.userId, user.id));
+  await db.delete(walletsTable).where(eq(walletsTable.userId, user.id));
+  await db.delete(usersTable).where(eq(usersTable.id, user.id));
+
+  res.json({ success: true, message: "User deleted" });
+});
+
 // GET /admin/wallets — all wallets across all users
 router.get("/admin/wallets", requireAdmin, async (req, res): Promise<void> => {
   const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
@@ -149,7 +200,7 @@ router.get("/admin/wallets", requireAdmin, async (req, res): Promise<void> => {
   });
 });
 
-// PATCH /admin/wallets/:walletId/balance — admin sets wallet balance
+// PATCH /admin/wallets/:walletId/balance — admin credits/debits wallet balance
 router.patch("/admin/wallets/:walletId/balance", requireAdmin, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.walletId) ? req.params.walletId[0] : req.params.walletId;
   const walletId = parseInt(raw);
@@ -165,27 +216,37 @@ router.patch("/admin/wallets/:walletId/balance", requireAdmin, async (req, res):
 
   const updateData: { balanceTlos?: string; balanceUsd?: string } = {};
   if (balanceTlos !== undefined) updateData.balanceTlos = parseFloat(balanceTlos).toFixed(8);
-  if (balanceUsd !== undefined) updateData.balanceUsd = parseFloat(balanceUsd).toFixed(2);
+
+  // Auto-calculate USD if only TLOS is provided
+  if (balanceTlos !== undefined && balanceUsd === undefined) {
+    updateData.balanceUsd = (parseFloat(balanceTlos) * TLOS_RATE).toFixed(2);
+  } else if (balanceUsd !== undefined) {
+    updateData.balanceUsd = parseFloat(balanceUsd).toFixed(2);
+  }
 
   const [updated] = await db.update(walletsTable)
     .set(updateData)
     .where(eq(walletsTable.id, walletId))
     .returning();
 
-  // Record as a credit transaction for audit trail
   if (balanceTlos !== undefined) {
-    const diff = parseFloat(balanceTlos) - parseFloat(wallet.balanceTlos ?? "0");
+    const prev = parseFloat(wallet.balanceTlos ?? "0");
+    const next = parseFloat(balanceTlos);
+    const diff = next - prev;
     if (diff !== 0) {
+      const isCredit = diff > 0;
       await db.insert(transactionsTable).values({
         userId: wallet.userId,
         walletId: wallet.id,
-        fromAddress: "admin",
-        toAddress: updated.evmAddress,
+        fromAddress: isCredit ? "admin" : wallet.evmAddress,
+        toAddress: isCredit ? wallet.evmAddress : "admin",
         amount: Math.abs(diff).toFixed(8),
         currency: "TLOS",
         status: "confirmed",
         txHash: `admin-${Date.now()}`,
-        memo: note ? `Admin balance update: ${note}` : `Admin balance adjustment`,
+        memo: note
+          ? `${isCredit ? "Received" : "Sent"}: ${note}`
+          : isCredit ? "Received" : "Sent",
         network: "evm",
       });
     }
@@ -265,6 +326,7 @@ router.get("/admin/withdrawals", requireAdmin, async (req, res): Promise<void> =
       processedAt: w.processedAt?.toISOString() ?? null,
       userEmail: u?.email ?? null,
       userDisplayName: u?.displayName ?? null,
+      userClerkId: u?.clerkId ?? null,
       walletLabel: wl?.label ?? null,
       walletZeroAddress: wl?.zeroAddress ?? null,
       walletEvmAddress: wl?.evmAddress ?? null,
@@ -291,7 +353,6 @@ router.patch("/admin/withdrawals/:id", requireAdmin, async (req, res): Promise<v
   }
 
   if (action === "approve") {
-    // Check balance
     const [wallet] = await db.select().from(walletsTable).where(eq(walletsTable.id, withdrawal.walletId)).limit(1);
     if (!wallet) { res.status(404).json({ error: "Wallet not found" }); return; }
 
@@ -303,11 +364,13 @@ router.patch("/admin/withdrawals/:id", requireAdmin, async (req, res): Promise<v
     }
 
     const newBalance = (balance - amount).toFixed(8);
-    await db.update(walletsTable).set({ balanceTlos: newBalance }).where(eq(walletsTable.id, wallet.id));
+    const newUsd = (parseFloat(newBalance) * TLOS_RATE).toFixed(2);
+    await db.update(walletsTable)
+      .set({ balanceTlos: newBalance, balanceUsd: newUsd })
+      .where(eq(walletsTable.id, wallet.id));
 
     const fakeTxHash = `0x${Date.now().toString(16)}${Math.random().toString(16).slice(2, 18)}`;
 
-    // Record confirmed transaction
     await db.insert(transactionsTable).values({
       userId: withdrawal.userId,
       walletId: withdrawal.walletId,
@@ -317,7 +380,7 @@ router.patch("/admin/withdrawals/:id", requireAdmin, async (req, res): Promise<v
       currency: "TLOS",
       status: "confirmed",
       txHash: fakeTxHash,
-      memo: "Withdrawal approved by admin",
+      memo: adminNote ? `Sent: ${adminNote}` : "Sent",
       network: withdrawal.network as "zero" | "evm",
     });
 
