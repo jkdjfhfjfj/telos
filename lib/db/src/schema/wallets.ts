@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, pgEnum, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -13,6 +13,8 @@ export const walletsTable = pgTable("wallets", {
   encryptedPrivateKey: text("encrypted_private_key").notNull(),
   encryptedZeroPrivateKey: text("encrypted_zero_private_key"),
   network: networkEnum("network").notNull().default("mainnet"),
+  balanceTlos: numeric("balance_tlos", { precision: 20, scale: 8 }).notNull().default("0"),
+  balanceUsd: numeric("balance_usd", { precision: 20, scale: 2 }).notNull().default("0"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

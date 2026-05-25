@@ -15,6 +15,10 @@ import TransactionsPage from "./pages/transactions";
 import ExplorerPage from "./pages/explorer";
 import AdminDashboardPage from "./pages/admin/dashboard";
 import AdminUserDetailPage from "./pages/admin/user-detail";
+import AdminWalletsPage from "./pages/admin/wallets";
+import AdminWithdrawalsPage from "./pages/admin/withdrawals";
+import AdminTransactionsPage from "./pages/admin/transactions";
+import AdminUsersPage from "./pages/admin/users";
 import CreateWalletPage from "./pages/wallets/create";
 import WalletDetailPage from "./pages/wallets/detail";
 import WalletSendPage from "./pages/wallets/send";
@@ -148,7 +152,7 @@ function ProtectedRoute({ component: Component }: { component: any }) {
 
 function AdminRoute({ component: Component }: { component: any }) {
   const { isLoaded, isSignedIn } = useAuth();
-  const { data: user, isLoading: userLoading } = useGetMe({ query: { enabled: isSignedIn } });
+  const { data: user, isLoading: userLoading } = useGetMe({ query: { enabled: isSignedIn } as any });
   
   if (!isLoaded || userLoading) return null;
   if (!isSignedIn) return <Redirect to="/sign-in" />;
@@ -200,6 +204,10 @@ function ClerkProviderWithRoutes() {
           <Route path="/wallets/:id" component={() => <ProtectedRoute component={WalletDetailPage} />} />
 
           <Route path="/admin" component={() => <AdminRoute component={AdminDashboardPage} />} />
+          <Route path="/admin/wallets" component={() => <AdminRoute component={AdminWalletsPage} />} />
+          <Route path="/admin/withdrawals" component={() => <AdminRoute component={AdminWithdrawalsPage} />} />
+          <Route path="/admin/transactions" component={() => <AdminRoute component={AdminTransactionsPage} />} />
+          <Route path="/admin/users" component={() => <AdminRoute component={AdminUsersPage} />} />
           <Route path="/admin/users/:id" component={() => <AdminRoute component={AdminUserDetailPage} />} />
           
           <Route component={NotFound} />

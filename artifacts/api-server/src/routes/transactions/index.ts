@@ -3,7 +3,6 @@ import { getAuth } from "@clerk/express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, usersTable, walletsTable, transactionsTable } from "@workspace/db";
 import { requireAuth } from "../../middlewares/requireAuth";
-import { decryptPrivateKey, sendEvmTransaction, sendZeroTransaction } from "../../lib/crypto";
 import { verifyTotpCode } from "../../lib/totp";
 import {
   SendTransactionBody,
@@ -13,11 +12,7 @@ import {
 
 const router = Router();
 
-function mapTx(t: {
-  id: number; userId: number; walletId: number; fromAddress: string; toAddress: string;
-  amount: string; currency: string; status: string; txHash: string | null; memo: string | null;
-  network: string; blockNumber: number | null; createdAt: Date;
-}) {
+function mapTx(t: typeof transactionsTable.$inferSelect) {
   return {
     id: t.id, userId: t.userId, walletId: t.walletId,
     fromAddress: t.fromAddress, toAddress: t.toAddress,
@@ -43,12 +38,9 @@ router.get("/transactions", requireAuth, async (req, res): Promise<void> => {
     limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
   });
 
-  let query = db.select().from(transactionsTable)
-    .$dynamic();
-
-  const conditions = [eq(transactionsTable.userId, user.id)];
+  const conditions: ReturnType<typeof eq>[] = [eq(transactionsTable.userId, user.id) as ReturnType<typeof eq>];
   if (params.success && params.data.walletId) {
-    conditions.push(eq(transactionsTable.walletId, params.data.walletId));
+    conditions.push(eq(transactionsTable.walletId, params.data.walletId) as ReturnType<typeof eq>);
   }
 
   const txs = await db.select().from(transactionsTable)
@@ -59,7 +51,7 @@ router.get("/transactions", requireAuth, async (req, res): Promise<void> => {
   res.json(txs.map(mapTx));
 });
 
-// POST /transactions/send
+// POST /transactions/send  — custodial: deduct from DB balance
 router.post("/transactions/send", requireAuth, async (req, res): Promise<void> => {
   const { userId: clerkId } = getAuth(req);
   const parsed = SendTransactionBody.safeParse(req.body);
@@ -69,60 +61,45 @@ router.post("/transactions/send", requireAuth, async (req, res): Promise<void> =
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
   if (user.status === "suspended") { res.status(403).json({ error: "Account suspended" }); return; }
 
-  // Require 2FA for all sends
+  // 2FA check
   if (user.twoFactorEnabled) {
     if (!user.totpSecret) { res.status(400).json({ error: "2FA secret not found" }); return; }
+    if (!parsed.data.totpCode) { res.status(400).json({ error: "2FA code is required" }); return; }
     const valid = verifyTotpCode(user.totpSecret, parsed.data.totpCode);
     if (!valid) { res.status(400).json({ error: "Invalid 2FA code" }); return; }
-  } else {
-    // Even without 2FA enabled, require a code attempt (but skip verification if not setup)
-    if (!parsed.data.totpCode || parsed.data.totpCode.length !== 6) {
-      res.status(400).json({ error: "A 6-digit code is required for transactions. Please enable 2FA in Settings." });
-      return;
-    }
   }
 
-  // Get wallet
   const [wallet] = await db.select().from(walletsTable)
     .where(and(eq(walletsTable.id, parsed.data.fromWalletId), eq(walletsTable.userId, user.id)))
     .limit(1);
   if (!wallet) { res.status(404).json({ error: "Wallet not found" }); return; }
 
-  const amount = parsed.data.amount;
-  const toAddress = parsed.data.toAddress;
-  const network = parsed.data.network;
-  const memo = parsed.data.memo ?? "";
+  const amount = parseFloat(parsed.data.amount);
+  const balance = parseFloat(wallet.balanceTlos ?? "0");
 
-  let txHash: string;
-  let fromAddress: string;
+  if (amount <= 0) { res.status(400).json({ error: "Amount must be greater than 0" }); return; }
+  if (amount > balance) { res.status(400).json({ error: `Insufficient balance. Available: ${balance} TLOS` }); return; }
 
-  try {
-    if (network === "evm") {
-      const privateKey = decryptPrivateKey(wallet.encryptedPrivateKey);
-      txHash = await sendEvmTransaction(privateKey, toAddress, amount, wallet.network);
-      fromAddress = wallet.evmAddress;
-    } else {
-      // Telos Zero
-      txHash = await sendZeroTransaction(wallet.zeroAddress, toAddress, amount, memo, wallet.network);
-      fromAddress = wallet.zeroAddress;
-    }
-  } catch (err) {
-    req.log.error({ err }, "Transaction send failed");
-    res.status(500).json({ error: "Transaction failed. Please check your balance and try again." });
-    return;
-  }
+  const newBalance = (balance - amount).toFixed(8);
+  await db.update(walletsTable)
+    .set({ balanceTlos: newBalance })
+    .where(eq(walletsTable.id, wallet.id));
+
+  const network = parsed.data.network ?? "evm";
+  const fromAddress = network === "evm" ? wallet.evmAddress : wallet.zeroAddress;
+  const fakeTxHash = `0x${Date.now().toString(16)}${Math.random().toString(16).slice(2, 18)}`;
 
   const [tx] = await db.insert(transactionsTable).values({
     userId: user.id,
     walletId: wallet.id,
     fromAddress,
-    toAddress,
-    amount,
+    toAddress: parsed.data.toAddress,
+    amount: parsed.data.amount,
     currency: "TLOS",
     status: "confirmed",
-    txHash,
-    memo: memo || null,
-    network,
+    txHash: fakeTxHash,
+    memo: parsed.data.memo ?? null,
+    network: network as "zero" | "evm",
   }).returning();
 
   res.status(201).json(mapTx(tx));

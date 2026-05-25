@@ -1,127 +1,134 @@
 import { Layout } from "@/components/layout";
-import { Button } from "@/components/ui/button";
-import { Link, useRoute } from "wouter";
-import { useGetWallet, useGetWalletBalance } from "@workspace/api-client-react";
+import { useRoute, useLocation } from "wouter";
+import { useGetWallet, useGetWalletBalance, useListTransactions } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Copy, ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import { Copy, ArrowUpRight, ArrowDownLeft, ChevronLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+const TLOS_USD = 0.18;
 
 export default function WalletDetailPage() {
   const [, params] = useRoute("/wallets/:id");
   const walletId = params?.id ? parseInt(params.id) : 0;
   const { toast } = useToast();
-  
-  const { data: wallet, isLoading } = useGetWallet(walletId, { query: { enabled: !!walletId } });
-  const { data: balances, isLoading: balancesLoading } = useGetWalletBalance(walletId, { query: { enabled: !!walletId, refetchInterval: 10000 } });
-  
-  const copyToClipboard = (text: string, type: string) => {
+  const [, setLocation] = useLocation();
+
+  const { data: wallet, isLoading } = useGetWallet(walletId, { query: { enabled: !!walletId } as any });
+  const { data: balance } = useGetWalletBalance(walletId, { query: { enabled: !!walletId, refetchInterval: 15000 } as any });
+  const { data: txs } = useListTransactions({ walletId, limit: 10 } as any, { query: { enabled: !!walletId } as any });
+
+  const copy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
-    toast({
-      title: "Copied!",
-      description: `${type} address copied to clipboard.`,
-    });
+    toast({ title: `${label} copied!` });
   };
+
+  const tlos = parseFloat((balance as any)?.balanceTlos ?? (wallet as any)?.balanceTlos ?? "0");
+  const usd = parseFloat((balance as any)?.balanceUsd ?? (wallet as any)?.balanceUsd ?? "0") || tlos * TLOS_USD;
 
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto">
-        <header className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold">{isLoading ? <Skeleton className="h-9 w-32" /> : wallet?.label}</h1>
-            <p className="text-muted-foreground">Manage your assets across both networks.</p>
-          </div>
-          <div className="flex gap-3">
-            <Link href={`/wallets/${walletId}/receive`}>
-              <Button variant="outline" className="gap-2">
-                <ArrowDownLeft className="w-4 h-4 text-primary" />
-                Receive
-              </Button>
-            </Link>
-            <Link href={`/wallets/${walletId}/send`}>
-              <Button className="gap-2">
-                <ArrowUpRight className="w-4 h-4" />
-                Send
-              </Button>
-            </Link>
-          </div>
-        </header>
-        
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          {/* Telos Zero Card */}
-          <div className="bg-card border border-border rounded-2xl p-6 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110" />
-            <h3 className="text-xl font-bold mb-6 text-primary flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              Telos Zero
-            </h3>
-            
-            <div className="mb-6">
-              <p className="text-sm text-muted-foreground mb-1">Available Balance</p>
-              {balancesLoading ? <Skeleton className="h-10 w-32" /> : (
-                <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-extrabold tracking-tight">{balances?.zeroBalance || "0.0000"}</span>
-                  <span className="text-lg text-muted-foreground font-bold">TLOS</span>
-                </div>
-              )}
-            </div>
+      {/* Header */}
+      <div className="flex items-center px-4 pt-6 pb-2 gap-3">
+        <button onClick={() => setLocation("/dashboard")} className="text-gray-400">
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+        <div className="flex-1">
+          {isLoading ? <Skeleton className="h-5 w-32 bg-white/10" /> : (
+            <h2 className="font-bold text-base">{wallet?.label}</h2>
+          )}
+          <p className="text-xs text-gray-500 capitalize">{wallet?.network} · Telos Zero + EVM</p>
+        </div>
+      </div>
 
-            {isLoading ? (
-              <Skeleton className="h-12 w-full" />
-            ) : (
-              <div className="bg-background/50 border border-border/50 p-4 rounded-xl flex items-center justify-between mt-auto">
-                <span className="font-mono text-lg tracking-widest font-bold">{wallet?.zeroAddress}</span>
-                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(wallet?.zeroAddress || "", "Telos Zero")} className="hover:bg-primary/20 hover:text-primary">
-                  <Copy className="w-4 h-4" />
-                </Button>
-              </div>
-            )}
-          </div>
-          
-          {/* Telos EVM Card */}
-          <div className="bg-card border border-border rounded-2xl p-6 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110" />
-            <h3 className="text-xl font-bold mb-6 text-secondary flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
-              Telos EVM
-            </h3>
-            
-            <div className="mb-6">
-              <p className="text-sm text-muted-foreground mb-1">Available Balance</p>
-              {balancesLoading ? <Skeleton className="h-10 w-32" /> : (
-                <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-extrabold tracking-tight">{balances?.evmBalance || "0.0000"}</span>
-                  <span className="text-lg text-muted-foreground font-bold">TLOS</span>
-                </div>
-              )}
-            </div>
+      {/* Balance */}
+      <div className="text-center py-6">
+        <p className="text-4xl font-light">${usd.toFixed(2)}</p>
+        <p className="text-gray-400 text-sm mt-1">{tlos.toFixed(4)} TLOS</p>
+      </div>
 
-            {isLoading ? (
-              <Skeleton className="h-12 w-full" />
-            ) : (
-              <div className="bg-background/50 border border-border/50 p-4 rounded-xl flex items-center justify-between mt-auto">
-                <span className="font-mono text-sm break-all font-medium leading-relaxed">{wallet?.evmAddress}</span>
-                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(wallet?.evmAddress || "", "Telos EVM")} className="hover:bg-secondary/20 hover:text-secondary shrink-0 ml-4">
-                  <Copy className="w-4 h-4" />
-                </Button>
-              </div>
-            )}
+      {/* Actions */}
+      <div className="flex items-center justify-center gap-6 px-6 mb-6">
+        <button
+          onClick={() => setLocation(`/wallets/${walletId}/send`)}
+          className="flex flex-col items-center gap-2"
+        >
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center">
+            <ArrowUpRight className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-xs text-gray-400">Send</span>
+        </button>
+        <button
+          onClick={() => setLocation(`/wallets/${walletId}/receive`)}
+          className="flex flex-col items-center gap-2"
+        >
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-600 to-cyan-500 flex items-center justify-center">
+            <ArrowDownLeft className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-xs text-gray-400">Receive</span>
+        </button>
+      </div>
+
+      {/* Addresses */}
+      <div className="px-4 space-y-3 mb-6">
+        {/* Zero */}
+        <div className="bg-[#1a1a1a] rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-cyan-400" />
+              <span className="text-xs font-semibold text-cyan-400">Telos Zero</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="font-mono text-lg font-bold tracking-widest truncate flex-1">{wallet?.zeroAddress ?? "—"}</p>
+            <button onClick={() => copy(wallet?.zeroAddress ?? "", "Zero address")} className="ml-3 text-gray-500 hover:text-white">
+              <Copy className="w-4 h-4" />
+            </button>
           </div>
         </div>
-        
-        <div className="bg-card border border-border rounded-xl p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold">Recent Activity</h2>
-            <Link href="/transactions">
-              <Button variant="link" className="text-primary">View All History</Button>
-            </Link>
+
+        {/* EVM */}
+        <div className="bg-[#1a1a1a] rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-purple-400" />
+              <span className="text-xs font-semibold text-purple-400">Telos EVM</span>
+            </div>
           </div>
-          <div className="text-center py-12 border border-dashed border-border rounded-lg bg-background/50">
-            <p className="text-muted-foreground mb-4">You can view complete transaction history in the Transactions tab.</p>
-            <Link href={`/wallets/${walletId}/receive`}>
-              <Button variant="secondary">Receive Assets to Get Started</Button>
-            </Link>
+          <div className="flex items-center justify-between">
+            <p className="font-mono text-sm text-gray-300 truncate flex-1">{wallet?.evmAddress ?? "—"}</p>
+            <button onClick={() => copy(wallet?.evmAddress ?? "", "EVM address")} className="ml-3 text-gray-500 hover:text-white">
+              <Copy className="w-4 h-4" />
+            </button>
           </div>
         </div>
+      </div>
+
+      {/* Recent Transactions */}
+      <div className="px-4">
+        <h3 className="text-sm font-semibold text-gray-400 mb-3">Recent Activity</h3>
+        {!txs || (txs as any[]).length === 0 ? (
+          <div className="text-center py-8 text-gray-600 text-sm">No transactions yet</div>
+        ) : (
+          <div className="space-y-2">
+            {(txs as any[]).slice(0, 5).map((tx: any) => (
+              <div key={tx.id} className="bg-[#1a1a1a] rounded-xl p-3 flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${tx.fromAddress === 'admin' ? 'bg-green-600/20' : 'bg-red-600/20'}`}>
+                  {tx.fromAddress === 'admin'
+                    ? <ArrowDownLeft className="w-4 h-4 text-green-400" />
+                    : <ArrowUpRight className="w-4 h-4 text-red-400" />
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{tx.fromAddress === 'admin' ? 'Received' : `To ${tx.toAddress.slice(0, 8)}...`}</p>
+                  <p className="text-xs text-gray-500">{new Date(tx.createdAt).toLocaleDateString()}</p>
+                </div>
+                <p className={`text-sm font-semibold ${tx.fromAddress === 'admin' ? 'text-green-400' : 'text-red-400'}`}>
+                  {tx.fromAddress === 'admin' ? '+' : '-'}{tx.amount} TLOS
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </Layout>
   );

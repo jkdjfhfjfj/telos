@@ -1,108 +1,114 @@
-import { Layout } from "@/components/layout";
-import { Button } from "@/components/ui/button";
 import { useRoute, useLocation } from "wouter";
 import { useGetReceiveInfo } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Copy, ArrowLeft } from "lucide-react";
+import { Copy, ChevronLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState } from "react";
+import { Layout } from "@/components/layout";
+import QRCode from "qrcode";
+import { useEffect } from "react";
+
+function QRDisplay({ data, size = 200 }: { data: string; size?: number }) {
+  const [qrUrl, setQrUrl] = useState("");
+  useEffect(() => {
+    if (!data) return;
+    QRCode.toDataURL(data, { width: size, margin: 1, color: { dark: "#000000", light: "#ffffff" } })
+      .then(setQrUrl)
+      .catch(() => setQrUrl(""));
+  }, [data, size]);
+  if (!qrUrl) return <div style={{ width: size, height: size }} className="bg-gray-200 rounded-xl animate-pulse" />;
+  return <img src={qrUrl} alt="QR Code" style={{ width: size, height: size }} className="rounded-xl" />;
+}
 
 export default function WalletReceivePage() {
   const [, params] = useRoute("/wallets/:id/receive");
   const walletId = params?.id ? parseInt(params.id) : 0;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<"evm" | "zero">("evm");
 
-  const { data: receiveInfo, isLoading } = useGetReceiveInfo(walletId, { query: { enabled: !!walletId } });
+  const { data: receiveInfo, isLoading } = useGetReceiveInfo(walletId, { query: { enabled: !!walletId } as any });
 
-  const copyToClipboard = (text: string, type: string) => {
+  const copy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
-    toast({
-      title: "Copied!",
-      description: `${type} address copied to clipboard.`,
-    });
+    toast({ title: `${label} copied!` });
   };
+
+  const activeAddress = activeTab === "evm" ? receiveInfo?.evmAddress : receiveInfo?.zeroAddress;
+  const qrData = activeTab === "evm"
+    ? `ethereum:${receiveInfo?.evmAddress}@40`
+    : `telos:${receiveInfo?.zeroAddress}`;
 
   return (
     <Layout>
-      <div className="max-w-xl mx-auto">
-        <Button variant="ghost" onClick={() => setLocation(`/wallets/${walletId}`)} className="mb-6 gap-2 -ml-4">
-          <ArrowLeft className="w-4 h-4" /> Back to Wallet
-        </Button>
-        
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold">Receive Assets</h1>
-          <p className="text-muted-foreground mt-2">Send TLOS or supported tokens to these addresses.</p>
-        </header>
-        
-        <div className="bg-card border border-border rounded-xl p-6">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 pt-6 pb-4">
+        <button onClick={() => setLocation(`/wallets/${walletId}`)} className="text-gray-400">
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+        <h1 className="text-lg font-bold">Receive Assets</h1>
+      </div>
+
+      {/* Tab selector */}
+      <div className="mx-4 mb-6">
+        <div className="flex bg-[#1a1a1a] rounded-2xl p-1">
+          {(["evm", "zero"] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                activeTab === tab ? "bg-gradient-to-r from-cyan-500 to-purple-600 text-white" : "text-gray-500"
+              }`}
+            >
+              {tab === "evm" ? "Telos EVM" : "Telos Zero"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* QR Code */}
+      <div className="flex flex-col items-center px-4 mb-6">
+        {isLoading ? (
+          <Skeleton className="w-52 h-52 rounded-2xl bg-white/10" />
+        ) : (
+          <div className="bg-white p-4 rounded-2xl shadow-lg">
+            <QRDisplay data={qrData} size={192} />
+          </div>
+        )}
+        <p className="text-xs text-gray-500 mt-4">
+          {activeTab === "evm" ? "Only send Telos EVM assets to this address" : "Only send Telos Zero (Native) assets"}
+        </p>
+      </div>
+
+      {/* Address display */}
+      <div className="mx-4">
+        <div className="bg-[#1a1a1a] rounded-2xl p-4">
+          <p className="text-xs text-gray-500 mb-3">{activeTab === "evm" ? "EVM Address (0x...)" : "Native Account Name"}</p>
           {isLoading ? (
-            <div className="space-y-6">
-              <Skeleton className="h-10 w-full" />
-              <div className="flex justify-center p-8"><Skeleton className="h-48 w-48 rounded-xl" /></div>
-              <Skeleton className="h-16 w-full" />
-            </div>
+            <Skeleton className="h-6 w-full bg-white/10" />
           ) : (
-            <Tabs defaultValue="evm" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-8 h-12">
-                <TabsTrigger value="evm" className="text-base">Telos EVM</TabsTrigger>
-                <TabsTrigger value="zero" className="text-base">Telos Zero</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="evm" className="space-y-8 animate-in fade-in zoom-in-95 duration-200">
-                <div className="flex flex-col items-center justify-center p-6 bg-white rounded-2xl w-fit mx-auto border border-border/5 shadow-sm">
-                  {receiveInfo?.evmQrData ? (
-                    <img src={receiveInfo.evmQrData} alt="EVM QR Code" className="w-56 h-56" />
-                  ) : (
-                    <div className="w-56 h-56 bg-gray-100 rounded flex items-center justify-center text-gray-400">QR Unavailable</div>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-center text-muted-foreground">EVM Address (0x...)</p>
-                  <div className="flex items-center gap-2 bg-muted/50 p-4 rounded-xl border border-border">
-                    <p className="font-mono text-sm break-all flex-1 text-center font-bold tracking-tight">
-                      {receiveInfo?.evmAddress}
-                    </p>
-                    <Button variant="secondary" size="icon" className="shrink-0 rounded-lg" onClick={() => copyToClipboard(receiveInfo?.evmAddress || "", "EVM")}>
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-                
-                <div className="bg-primary/10 text-primary p-4 rounded-lg text-sm text-center">
-                  Only send assets on the <strong>Telos EVM</strong> network to this address.
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="zero" className="space-y-8 animate-in fade-in zoom-in-95 duration-200">
-                <div className="flex flex-col items-center justify-center p-6 bg-white rounded-2xl w-fit mx-auto border border-border/5 shadow-sm">
-                  {receiveInfo?.zeroQrData ? (
-                    <img src={receiveInfo.zeroQrData} alt="Zero QR Code" className="w-56 h-56" />
-                  ) : (
-                    <div className="w-56 h-56 bg-gray-100 rounded flex items-center justify-center text-gray-400">QR Unavailable</div>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-center text-muted-foreground">Native Account Name</p>
-                  <div className="flex items-center gap-2 bg-muted/50 p-4 rounded-xl border border-border">
-                    <p className="font-mono text-xl text-center flex-1 font-bold tracking-widest">
-                      {receiveInfo?.zeroAddress}
-                    </p>
-                    <Button variant="secondary" size="icon" className="shrink-0 rounded-lg" onClick={() => copyToClipboard(receiveInfo?.zeroAddress || "", "Zero")}>
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-                
-                <div className="bg-primary/10 text-primary p-4 rounded-lg text-sm text-center">
-                  Only send assets on the <strong>Telos Zero (Native)</strong> network to this account.
-                </div>
-              </TabsContent>
-            </Tabs>
+            <div className="flex items-center gap-3">
+              <p className={`flex-1 font-mono break-all leading-relaxed ${activeTab === "zero" ? "text-xl font-bold tracking-widest" : "text-sm"}`}>
+                {activeAddress}
+              </p>
+              <button
+                onClick={() => copy(activeAddress ?? "", activeTab === "evm" ? "EVM address" : "Zero address")}
+                className="shrink-0 w-10 h-10 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-full flex items-center justify-center"
+              >
+                <Copy className="w-4 h-4 text-white" />
+              </button>
+            </div>
           )}
         </div>
+      </div>
+
+      {/* Warning */}
+      <div className="mx-4 mt-4 bg-cyan-500/10 border border-cyan-500/20 rounded-2xl p-4">
+        <p className="text-xs text-cyan-400 text-center">
+          {activeTab === "evm"
+            ? "Send only TLOS and EVM-compatible tokens on the Telos EVM network"
+            : "Send only native TLOS on the Telos Zero network to this account"}
+        </p>
       </div>
     </Layout>
   );

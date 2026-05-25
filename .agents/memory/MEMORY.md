@@ -1,0 +1,3 @@
+- [TanStack Query v5 hook options](tanstack-query-options.md) — Orval-generated hooks require `queryKey` in `UseQueryOptions`; use `{ query: { enabled: ... } as any }` to bypass.
+- [Wallet balance fields](wallet-balance-fields.md) — `balanceTlos`/`balanceUsd` are in DB but not in generated Wallet type; cast wallet to `any` when accessing them.
+- [Admin API direct fetch pattern](admin-api-pattern.md) — New admin endpoints not in OpenAPI spec; call via direct `fetch('/api/admin/...')` with custom `adminFetch` helper.

@@ -13,12 +13,12 @@ export default function ExplorerPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchTrigger, setSearchTrigger] = useState("");
 
-  const { data: blocks, isLoading: blocksLoading } = useGetExplorerBlocks({ network }, { query: { refetchInterval: 5000 } });
-  const { data: txs, isLoading: txsLoading } = useGetExplorerTransactions({ network }, { query: { refetchInterval: 5000 } });
+  const { data: blocks, isLoading: blocksLoading } = useGetExplorerBlocks({ network }, { query: { refetchInterval: 5000 } as any });
+  const { data: txs, isLoading: txsLoading } = useGetExplorerTransactions({ network }, { query: { refetchInterval: 5000 } as any });
   
   const { data: searchResults, isLoading: searchLoading } = useExplorerSearch(
     { q: searchTrigger }, 
-    { query: { enabled: !!searchTrigger } }
+    { query: { enabled: !!searchTrigger } as any }
   );
 
   const handleSearch = (e: React.FormEvent) => {
