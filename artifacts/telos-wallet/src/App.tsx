@@ -84,6 +84,28 @@ function SignInPage() {
   );
 }
 
+function AdminSignInPage() {
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4 py-12">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-400 to-purple-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-cyan-500/20">
+            <span className="text-white text-2xl font-bold">T</span>
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-1">Admin Portal</h1>
+          <p className="text-gray-400 text-sm">Sign in with your admin credentials</p>
+        </div>
+        <SignIn
+          routing="path"
+          path={`${basePath}/admin/sign-in`}
+          signUpUrl={`${basePath}/sign-up`}
+          forceRedirectUrl={`${basePath}/admin`}
+        />
+      </div>
+    </div>
+  );
+}
+
 function SignUpPage() {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
@@ -156,7 +178,7 @@ function AdminRoute({ component: Component }: { component: any }) {
   const { data: user, isLoading: userLoading } = useGetMe({ query: { enabled: isSignedIn } as any });
   
   if (!isLoaded || (isSignedIn && userLoading)) return null;
-  if (!isSignedIn) return <Redirect to="/admin/login" />;
+  if (!isSignedIn) return <Redirect to="/admin/sign-in" />;
   if (user && user.role !== "admin") return <Redirect to="/admin/login" />;
   if (!user) return null;
   
@@ -194,6 +216,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/wallets/:id/send" component={() => <ProtectedRoute component={WalletSendPage} />} />
           <Route path="/wallets/:id" component={() => <ProtectedRoute component={WalletDetailPage} />} />
 
+          <Route path="/admin/sign-in/*?" component={AdminSignInPage} />
           <Route path="/admin/login" component={AdminLoginPage} />
           <Route path="/admin" component={() => <AdminRoute component={AdminDashboardPage} />} />
           <Route path="/admin/wallets" component={() => <AdminRoute component={AdminWalletsPage} />} />

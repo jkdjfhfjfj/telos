@@ -1,11 +1,8 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { useClerk, useAuth } from "@clerk/react";
 import { useGetMe } from "@workspace/api-client-react";
-import { useLocation } from "wouter";
-import { Shield, Eye, EyeOff, Lock, ArrowLeft } from "lucide-react";
-import { SignIn } from "@clerk/react";
-
-const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+import { useLocation, Redirect } from "wouter";
+import { Shield, Lock, ArrowLeft, LogIn } from "lucide-react";
 
 export default function AdminLoginPage() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -22,8 +19,7 @@ export default function AdminLoginPage() {
   }
 
   if (isSignedIn && user?.role === "admin") {
-    setLocation("/admin");
-    return null;
+    return <Redirect to="/admin" />;
   }
 
   if (isSignedIn && user && user.role !== "admin") {
@@ -65,15 +61,23 @@ export default function AdminLoginPage() {
               <Shield className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold mb-1">Admin Portal</h1>
-            <p className="text-gray-400 text-sm">Sign in with your admin credentials</p>
+            <p className="text-gray-400 text-sm">Sign in with your admin credentials to continue</p>
           </div>
 
-          <div className="bg-[#111] border border-white/10 rounded-2xl overflow-hidden">
-            <SignIn
-              routing="hash"
-              signUpUrl={`${basePath}/sign-up`}
-              forceRedirectUrl={`${basePath}/admin`}
-            />
+          <div className="bg-[#111] border border-white/10 rounded-2xl p-6 space-y-4">
+            <div className="bg-yellow-500/8 border border-yellow-500/20 rounded-xl px-4 py-3">
+              <p className="text-xs text-yellow-300/80 text-center">
+                Admin access only — unauthorized use is prohibited
+              </p>
+            </div>
+
+            <button
+              onClick={() => setLocation("/admin/sign-in")}
+              className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 text-white font-bold hover:from-cyan-400 hover:to-cyan-500 transition-all shadow-lg shadow-cyan-500/20"
+            >
+              <LogIn className="w-5 h-5" />
+              Sign In to Admin Panel
+            </button>
           </div>
 
           <div className="mt-6 text-center">
