@@ -3,20 +3,29 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Telos Wallet API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: users
+    description: User management
+  - name: wallets
+    description: Wallet and address management
+  - name: transactions
+    description: Send/receive transactions
+  - name: explorer
+    description: Block explorer
+  - name: admin
+    description: Admin panel
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +33,734 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /users/me:
+    get:
+      operationId: getMe
+      tags: [users]
+      summary: Get current user profile
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Unauthorized
+
+  /users/sync:
+    post:
+      operationId: syncUser
+      tags: [users]
+      summary: Sync Clerk user to database (JIT provisioning)
+      responses:
+        "200":
+          description: User synced
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /users/2fa/setup:
+    get:
+      operationId: setup2fa
+      tags: [users]
+      summary: Get TOTP setup QR code and secret
+      responses:
+        "200":
+          description: 2FA setup data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TotpSetup"
+
+  /users/2fa/verify:
+    post:
+      operationId: verify2fa
+      tags: [users]
+      summary: Verify a TOTP code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TotpVerifyInput"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TotpVerifyResult"
+
+  /users/2fa/enable:
+    post:
+      operationId: enable2fa
+      tags: [users]
+      summary: Enable 2FA after verifying TOTP code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TotpVerifyInput"
+      responses:
+        "200":
+          description: 2FA enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /users/2fa/disable:
+    post:
+      operationId: disable2fa
+      tags: [users]
+      summary: Disable 2FA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TotpVerifyInput"
+      responses:
+        "200":
+          description: 2FA disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /wallets:
+    get:
+      operationId: listWallets
+      tags: [wallets]
+      summary: List user wallets
+      responses:
+        "200":
+          description: List of wallets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Wallet"
+    post:
+      operationId: createWallet
+      tags: [wallets]
+      summary: Create a new Telos wallet (Zero + EVM addresses)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletInput"
+      responses:
+        "201":
+          description: Wallet created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+
+  /wallets/{walletId}:
+    get:
+      operationId: getWallet
+      tags: [wallets]
+      summary: Get wallet details
+      parameters:
+        - name: walletId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Wallet details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+
+  /wallets/{walletId}/balance:
+    get:
+      operationId: getWalletBalance
+      tags: [wallets]
+      summary: Get wallet balance from Telos network
+      parameters:
+        - name: walletId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Wallet balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletBalance"
+
+  /wallets/{walletId}/receive:
+    get:
+      operationId: getReceiveInfo
+      tags: [wallets]
+      summary: Get receive address info and QR code data
+      parameters:
+        - name: walletId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Receive info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceiveInfo"
+
+  /transactions:
+    get:
+      operationId: listTransactions
+      tags: [transactions]
+      summary: List user transactions
+      parameters:
+        - name: walletId
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+
+  /transactions/send:
+    post:
+      operationId: sendTransaction
+      tags: [transactions]
+      summary: Send TLOS tokens (Zero or EVM)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendInput"
+      responses:
+        "201":
+          description: Transaction submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  /transactions/{txId}:
+    get:
+      operationId: getTransaction
+      tags: [transactions]
+      summary: Get transaction details
+      parameters:
+        - name: txId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Transaction details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  /explorer/transactions:
+    get:
+      operationId: getExplorerTransactions
+      tags: [explorer]
+      summary: Get recent network transactions
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: network
+          in: query
+          schema:
+            type: string
+            enum: [zero, evm]
+      responses:
+        "200":
+          description: Recent transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExplorerTransaction"
+
+  /explorer/blocks:
+    get:
+      operationId: getExplorerBlocks
+      tags: [explorer]
+      summary: Get recent blocks
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: network
+          in: query
+          schema:
+            type: string
+            enum: [zero, evm]
+      responses:
+        "200":
+          description: Recent blocks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExplorerBlock"
+
+  /explorer/search:
+    get:
+      operationId: explorerSearch
+      tags: [explorer]
+      summary: Search by address or transaction hash
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExplorerSearchResult"
+
+  /explorer/stats:
+    get:
+      operationId: getNetworkStats
+      tags: [explorer]
+      summary: Get Telos network stats
+      responses:
+        "200":
+          description: Network stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkStats"
+
+  /admin/users:
+    get:
+      operationId: adminListUsers
+      tags: [admin]
+      summary: List all users (admin only)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserList"
+
+  /admin/users/{userId}:
+    get:
+      operationId: adminGetUser
+      tags: [admin]
+      summary: Get user details (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserDetail"
+    patch:
+      operationId: adminUpdateUser
+      tags: [admin]
+      summary: Update user status (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUserUpdate"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserDetail"
+
+  /admin/transactions:
+    get:
+      operationId: adminListTransactions
+      tags: [admin]
+      summary: List all transactions (admin only)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: All transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+
+  /admin/stats:
+    get:
+      operationId: adminGetStats
+      tags: [admin]
+      summary: Get admin dashboard stats
+      responses:
+        "200":
+          description: Admin stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    UserProfile:
+      type: object
+      required: [id, clerkId, email, role, twoFactorEnabled, createdAt]
+      properties:
+        id:
+          type: integer
+        clerkId:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [user, admin]
+        twoFactorEnabled:
+          type: boolean
+        createdAt:
+          type: string
+
+    TotpSetup:
+      type: object
+      required: [secret, otpauthUrl, qrCodeDataUrl]
+      properties:
+        secret:
+          type: string
+        otpauthUrl:
+          type: string
+        qrCodeDataUrl:
+          type: string
+
+    TotpVerifyInput:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+
+    TotpVerifyResult:
+      type: object
+      required: [valid]
+      properties:
+        valid:
+          type: boolean
+
+    Wallet:
+      type: object
+      required: [id, userId, label, zeroAddress, evmAddress, network, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        label:
+          type: string
+        zeroAddress:
+          type: string
+        evmAddress:
+          type: string
+        network:
+          type: string
+          enum: [mainnet, testnet]
+        createdAt:
+          type: string
+
+    WalletInput:
+      type: object
+      required: [label]
+      properties:
+        label:
+          type: string
+        network:
+          type: string
+          enum: [mainnet, testnet]
+
+    WalletBalance:
+      type: object
+      required: [zeroBalance, evmBalance, currency]
+      properties:
+        zeroBalance:
+          type: string
+        evmBalance:
+          type: string
+        currency:
+          type: string
+        zeroStaked:
+          type: ["string", "null"]
+        zeroRefunding:
+          type: ["string", "null"]
+
+    ReceiveInfo:
+      type: object
+      required: [zeroAddress, evmAddress, walletId]
+      properties:
+        walletId:
+          type: integer
+        zeroAddress:
+          type: string
+        evmAddress:
+          type: string
+        zeroQrData:
+          type: string
+        evmQrData:
+          type: string
+
+    SendInput:
+      type: object
+      required: [fromWalletId, toAddress, amount, network, totpCode]
+      properties:
+        fromWalletId:
+          type: integer
+        toAddress:
+          type: string
+        amount:
+          type: string
+        memo:
+          type: ["string", "null"]
+        network:
+          type: string
+          enum: [zero, evm]
+        totpCode:
+          type: string
+
+    Transaction:
+      type: object
+      required: [id, userId, walletId, fromAddress, toAddress, amount, currency, status, network, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        walletId:
+          type: integer
+        fromAddress:
+          type: string
+        toAddress:
+          type: string
+        amount:
+          type: string
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [pending, confirmed, failed]
+        txHash:
+          type: ["string", "null"]
+        memo:
+          type: ["string", "null"]
+        network:
+          type: string
+          enum: [zero, evm]
+        blockNumber:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+
+    ExplorerTransaction:
+      type: object
+      required: [txHash, fromAddress, toAddress, amount, currency, blockNumber, timestamp, network]
+      properties:
+        txHash:
+          type: string
+        fromAddress:
+          type: string
+        toAddress:
+          type: string
+        amount:
+          type: string
+        currency:
+          type: string
+        blockNumber:
+          type: integer
+          nullable: true
+        timestamp:
+          type: string
+        status:
+          type: string
+        network:
+          type: string
+
+    ExplorerBlock:
+      type: object
+      required: [blockNumber, blockHash, producer, txCount, timestamp, network]
+      properties:
+        blockNumber:
+          type: integer
+        blockHash:
+          type: string
+        producer:
+          type: string
+        txCount:
+          type: integer
+        timestamp:
+          type: string
+        network:
+          type: string
+
+    ExplorerSearchResult:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [transaction, address, block, notfound]
+        data:
+          type: object
+
+    NetworkStats:
+      type: object
+      required: [zeroBlockHeight, evmBlockHeight, tlosPrice, totalAccounts, tps]
+      properties:
+        zeroBlockHeight:
+          type: integer
+        evmBlockHeight:
+          type: integer
+        tlosPrice:
+          type: string
+        totalAccounts:
+          type: integer
+        tps:
+          type: number
+
+    AdminUserList:
+      type: object
+      required: [users, total]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserProfile"
+        total:
+          type: integer
+
+    AdminUserDetail:
+      type: object
+      required: [id, clerkId, email, role, twoFactorEnabled, status, walletCount, transactionCount, createdAt]
+      properties:
+        id:
+          type: integer
+        clerkId:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        role:
+          type: string
+        twoFactorEnabled:
+          type: boolean
+        status:
+          type: string
+          enum: [active, suspended]
+        walletCount:
+          type: integer
+        transactionCount:
+          type: integer
+        createdAt:
+          type: string
+
+    AdminUserUpdate:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [user, admin]
+        status:
+          type: string
+          enum: [active, suspended]
+
+    AdminStats:
+      type: object
+      required: [totalUsers, totalWallets, totalTransactions, totalVolume, activeUsersToday, pendingTransactions]
+      properties:
+        totalUsers:
+          type: integer
+        totalWallets:
+          type: integer
+        totalTransactions:
+          type: integer
+        totalVolume:
+          type: string
+        activeUsersToday:
+          type: integer
+        pendingTransactions:
+          type: integer
