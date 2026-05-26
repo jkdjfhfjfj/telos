@@ -44,7 +44,8 @@ function stripBase(path: string): string {
 }
 
 if (!clerkPubKey) {
-  throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
+  document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0a0f1e;color:#f87171;font-family:monospace;font-size:14px;padding:24px;text-align:center;flex-direction:column;gap:12px"><strong style="font-size:18px">Configuration Error</strong><p>VITE_CLERK_PUBLISHABLE_KEY is not set.<br/>Set it in your hosting environment and redeploy.</p></div>`;
+  throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY — app cannot start');
 }
 
 const clerkAppearance = {
