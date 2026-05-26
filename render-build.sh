@@ -10,7 +10,7 @@ PNPM_VERSION=$(pnpm --version)
 export npm_config_user_agent="pnpm/${PNPM_VERSION} npm/? node/$(node --version) linux x64"
 
 echo "=== Installing dependencies ==="
-pnpm install --frozen-lockfile
+pnpm install --no-frozen-lockfile
 
 echo "=== Building frontend (BASE_PATH=/) ==="
 cd artifacts/telos-wallet
