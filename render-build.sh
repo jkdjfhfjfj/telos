@@ -13,14 +13,10 @@ echo "=== Installing dependencies ==="
 pnpm install --no-frozen-lockfile
 
 echo "=== Building frontend (BASE_PATH=/) ==="
-cd artifacts/telos-wallet
-BASE_PATH=/ pnpm run build
-cd ../..
+BASE_PATH=/ pnpm --filter @workspace/telos-wallet run build
 
 echo "=== Building API server ==="
-cd artifacts/api-server
-pnpm run build
-cd ../..
+pnpm --filter @workspace/api-server run build
 
 echo "=== Copying frontend into API dist/public ==="
 mkdir -p artifacts/api-server/dist/public
