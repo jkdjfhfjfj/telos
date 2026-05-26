@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
-echo "=== Enabling pnpm via corepack ==="
-corepack enable
-corepack prepare pnpm@latest --activate
+echo "=== Installing pnpm into local node_modules ==="
+npm install pnpm
+export PATH="$(pwd)/node_modules/.bin:$PATH"
 
 echo "=== Installing dependencies ==="
 pnpm install --frozen-lockfile
