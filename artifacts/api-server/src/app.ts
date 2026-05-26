@@ -57,7 +57,7 @@ if (process.env.NODE_ENV === "production") {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const staticPath = path.join(__dirname, "public");
   app.use(express.static(staticPath));
-  app.get("*", (_req, res) => {
+  app.use((_req, res) => {
     res.sendFile(path.join(staticPath, "index.html"));
   });
 }
