@@ -2,7 +2,7 @@
 set -e
 
 echo "=== Installing pnpm into local node_modules ==="
-npm install pnpm
+npm install --no-save pnpm
 export PATH="$(pwd)/node_modules/.bin:$PATH"
 
 echo "=== Installing dependencies ==="
