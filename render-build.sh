@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-echo "=== Installing pnpm@9 into /tmp (outside workspace) ==="
-npm install --prefix /tmp/pnpm-install pnpm@9
+echo "=== Installing pnpm@10 into /tmp (outside workspace) ==="
+npm install --prefix /tmp/pnpm-install pnpm@10
 export PATH="/tmp/pnpm-install/node_modules/.bin:$PATH"
 
 # Explicitly set the user agent so the workspace preinstall guard recognises pnpm
