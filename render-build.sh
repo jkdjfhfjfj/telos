@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -e
 
+echo "=== Enabling pnpm via corepack ==="
+corepack enable
+corepack prepare pnpm@latest --activate
+
 echo "=== Installing dependencies ==="
-npm install -g pnpm
 pnpm install --frozen-lockfile
 
 echo "=== Building frontend (BASE_PATH=/) ==="
