@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 set -e
 
-echo "=== Installing pnpm into /tmp (outside workspace) ==="
-npm install --prefix /tmp/pnpm-install pnpm
+echo "=== Installing pnpm@9 into /tmp (outside workspace) ==="
+npm install --prefix /tmp/pnpm-install pnpm@9
 export PATH="/tmp/pnpm-install/node_modules/.bin:$PATH"
+
+# Explicitly set the user agent so the workspace preinstall guard recognises pnpm
+PNPM_VERSION=$(pnpm --version)
+export npm_config_user_agent="pnpm/${PNPM_VERSION} npm/? node/$(node --version) linux x64"
 
 echo "=== Installing dependencies ==="
 pnpm install --frozen-lockfile
