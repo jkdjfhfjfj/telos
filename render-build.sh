@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
-echo "=== Installing pnpm into local node_modules ==="
-npm install --no-save pnpm
-export PATH="$(pwd)/node_modules/.bin:$PATH"
+echo "=== Installing pnpm into /tmp (outside workspace) ==="
+npm install --prefix /tmp/pnpm-install pnpm
+export PATH="/tmp/pnpm-install/node_modules/.bin:$PATH"
 
 echo "=== Installing dependencies ==="
 pnpm install --frozen-lockfile
